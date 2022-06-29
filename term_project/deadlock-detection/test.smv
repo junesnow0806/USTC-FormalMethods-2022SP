@@ -1,0 +1,24 @@
+MODULE prc(other-st)
+    VAR
+        st: {n, t, c};
+    ASSIGN
+        init(st) := n;
+        next(st) :=
+            case
+                (st = n) : {t};
+                (st = t) & ((other-st = n) | (other-st = t)) : {c};
+                (st = c) : n;
+                TRUE : st;
+            esac;
+
+MODULE main
+    VAR
+        pr1: process prc(pr2.st);
+        pr2: process prc(pr1.st);
+    -- LTLSPEC 
+        -- G !(pr1.st = c & pr2.st = c) -- Safety
+        -- G (pr1.st = t -> F pr1.st = c) -- Liveness
+    CTLSPEC
+        -- AG (pr1.st = n -> EX pr1.st = t) -- Non-blocking
+        AG (pr1.st = c -> E[ !(pr2.st = c) U pr1.st = c ]) -- No strict sequencing
+        

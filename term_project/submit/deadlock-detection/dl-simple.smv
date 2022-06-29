@@ -1,0 +1,76 @@
+MODULE main
+    VAR
+        c1: {0, 1, 2, 3, 4};
+        c2: {0, 1, 2, 3, 4};
+        c3: {0, 1, 2, 3, 4};
+        c4: {0, 1, 2, 3, 4};
+        -- 不允许给4发送消息
+        pr1: process node(c4, c1, 1, {2, 3}, TRUE);
+        pr2: process node(c1, c2, 2, {1, 3}, TRUE);
+        pr3: process node(c2, c3, 3, {1, 2}, TRUE);
+        pr4: process node(c3, c4, 4, {1, 2, 3}, FALSE);
+    ASSIGN
+        init(c1) := 0;
+        init(c2) := 0;
+        init(c3) := 0;
+        init(c4) := 0;
+        next(c1) := c1;
+        next(c2) := c2;
+        next(c3) := c3;
+        next(c4) := c4;
+    CTLSPEC
+        -- 死锁: 某一情况下, 所有信道都不为空且所有节点均无法receive
+        AG(
+            !(
+                (c1 != 0 & c1 != 2) & 
+                (c2 != 0 & c2 != 3) & 
+                (c3 != 0 & c3 != 4) & 
+                (c4 != 0 & c4 != 1)
+            )
+        )
+
+
+MODULE node(from, to, id, destinations, allowed)
+    -- from: 入边上的destination
+    -- to: 出边上的destination
+    -- id: 节点编号
+    -- destinations: 该节点允许向其发送消息的目标节点集合
+    -- allowed: 指示该节点是否允许send和receive
+    FAIRNESS running
+    FAIRNESS !(state != idle)
+    VAR
+        state: {send, receive, proc, idle};
+    ASSIGN
+        init(state) := {idle};
+        next(state) := 
+            case
+                (from = 0 & to = 0) : {idle, send};
+                (from = 0 & to != 0) : {idle};
+                (from != 0 & to = 0 & from = id) : {receive, send, idle};
+                (from != 0 & to = 0 & from != id) : {proc, send, idle};
+                (from != 0 & to != 0 & from = id) : {receive, idle};
+                (from != 0 & to != 0 & from != id) : {idle};
+                TRUE: state;
+            esac;
+        next(from) :=
+            case
+                (from = id) : 0; -- receive动作, 入边编号改为0
+                (from != 0 & from != id & to = 0 & state = proc) : 0;
+                TRUE: from;
+            esac;
+        next(to) :=
+            case
+                (state = send & allowed = TRUE & to = 0) : destinations; -- 如果当前状态为send, 则随机向一个node发送一条信息
+                (from != 0 & from != id & to = 0 & state = proc) : from; -- 转发
+                TRUE: to;
+            esac;
+
+
+
+
+
+
+
+
+
+

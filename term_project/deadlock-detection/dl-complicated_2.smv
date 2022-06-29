@@ -1,0 +1,201 @@
+MODULE main
+    VAR
+        c1: {0, 1, 5, 9, 13};
+        c2: {0, 1, 5, 9, 13};
+        c3: {0, 1, 5, 9, 13};
+        c4: {0, 1, 5, 9, 13};
+        c5: {0, 1, 5, 9, 13};
+        c6: {0, 1, 5, 9, 13};
+        c7: {0, 1, 5, 9, 13};
+        c8: {0, 1, 5, 9, 13};
+        c9: {0, 1, 5, 9, 13};
+        c10: {0, 1, 5, 9, 13};
+        c11: {0, 1, 5, 9, 13};
+        c12: {0, 1, 5, 9, 13};
+
+        pr1: process terminal(1, c8, c1, {5, 9, 13});
+        pr2: process terminal(5, c2, c3, {1, 9, 13});
+        pr3: process terminal(9, c4, c5, {1, 5, 13});
+        pr4: process terminal(13, c6, c7, {1, 5, 9});
+        pr5: process center(17, c10, c11, c12, c9);
+        pr6: process inter(3, c1, c2, c10, 5, 9, 13);
+        pr7: process inter(7, c3, c4, c11, 9, 1, 13);
+        pr8: process inter(11, c5, c6, c12, 13, 1, 5);
+        pr9: process inter(15, c7, c8, c9, 1, 5, 9);
+    ASSIGN
+        init(c1) := 0;
+        init(c2) := 0;
+        init(c3) := 0;
+        init(c4) := 0;
+        init(c5) := 0;
+        init(c6) := 0;
+        init(c7) := 0;
+        init(c8) := 0;
+        init(c9) := 0;
+        init(c10) := 0;
+        init(c11) := 0;
+        init(c12) := 0;
+        next(c1) := c1;
+        next(c2) := c2;
+        next(c3) := c3;
+        next(c4) := c4;
+        next(c5) := c5;
+        next(c6) := c6;
+        next(c7) := c7;
+        next(c8) := c8;
+        next(c9) := c9;
+        next(c10) := c10;
+        next(c11) := c11;
+        next(c12) := c12;
+    CTLSPEC
+        AG(
+            !(
+                -- node1 blocked
+                (c1 != 0 & c8 != 1) &
+                -- node5 blocked
+                (c3 != 0 & c2 != 5) &
+                -- node9 blocked
+                (c5 != 0 & c4 != 9) &
+                -- node13 blocked
+                (c7 != 0 & c6 != 13) &
+                -- node3 blocked
+                ((c1=0&c2=0&c10=0)&(c1=5&c2!=0)&(((c1=9)|(c1=13))&c10!=0)&(c10=5&c2!=0))&
+                -- node7 blocked
+                ((c3=0&c4=0&c11=0)&(c3=9&c4!=0)&(((c3=1)|(c3=13))&c11!=0)&(c11=9&c4!=0))&
+                -- node11 blocked
+                ((c5=0&c6=0&c12=0)&(c5=13&c6!=0)&(((c5=1)|(c5=5))&c12!=0)&(c12=13&c6!=0))&
+                -- node15 blocked
+                ((c7=0&c8=0&c9=0)&(c7=1&c8!=0)&(((c7=5)|(c7=9))&c9!=0)&(c9=1&c8!=0))&
+                -- node17 blocked
+                ((c10=9|c9=9)&c11!=0)&((c10=13|c11=13)&c12!=0)&((c11=1|c12=1)&c9!=0)&((c9=5|c12=5)&c10!=0)
+            )
+        )
+
+
+MODULE terminal(id, from, to, destinations)
+    FAIRNESS running
+    FAIRNESS !(state != idle)
+    VAR
+        state: {idle, send, receive, proc};
+    ASSIGN
+        init(state) := idle;
+        next(state) := 
+            case
+                (from = 0 & to = 0) : {idle, send};
+                (from = 0 & to != 0) : {idle};
+                (from != 0 & to = 0 & from = id) : {receive, send, idle};
+                (from != 0 & to = 0 & from != id) : {proc, send, idle};
+                (from != 0 & to != 0 & from = id) : {receive, idle};
+                (from != 0 & to != 0 & from != id) : {idle};
+                TRUE: state;
+            esac;
+        next(from) :=
+            case
+                (from = id) : 0; -- receive动作, 入边编号改为0
+                (from != 0 & from != id & to = 0 & state = proc) : 0;
+                TRUE: from;
+            esac;
+        next(to) :=
+            case
+                (state = send & to = 0) : destinations; -- 如果当前状态为send, 则随机向一个node发送一条信息
+                (from != 0 & from != id & to = 0 & state = proc) : from; -- 转发
+                TRUE: to;
+            esac;
+
+
+MODULE center(id, dinout_e, dinout_s, dinout_w, dinout_n)
+    -- 有四个双向可进可出端口
+    FAIRNESS running
+    FAIRNESS !(state = idle)
+    VAR
+        state : {idle, proc1, proc2, proc3, proc4, proc5, proc6, proc7, proc8};
+    ASSIGN
+        init(state) := idle;
+        next(state) :=
+            case
+                -- proc1: 3->17->7
+                (dinout_n = 9 & dinout_e = 0) : proc1;
+                -- proc2: 3->17->11
+                (dinout_n = 13 & dinout_s = 0) : proc2;
+                -- proc3: 7->17->15
+                (dinout_e = 1 & dinout_w = 0) : proc3;
+                -- proc4: 7->17->11
+                (dinout_e = 13 & dinout_s = 0) : proc4;
+                -- proc5: 11->17->15
+                (dinout_s = 1 & dinout_w = 0) : proc5;
+                -- proc6: 11->17->3
+                (dinout_s = 5 & dinout_n = 0) : proc6;
+                -- proc7: 15->17->3
+                (dinout_w = 5 & dinout_n = 0) : proc7;
+                -- proc8: 15->17->7
+                (dinout_w = 9 & dinout_e = 0) : proc8;
+                TRUE: idle;
+            esac;
+        next(dinout_e) :=
+            case
+                (state = proc1) : 9;
+                (state = proc3) : 0;
+                (state = proc4) : 0;
+                (state = proc8) : 9;
+                TRUE: dinout_e;
+            esac;
+        next(dinout_s) :=
+            case
+                (state = proc2) : 13;
+                (state = proc4) : 13;
+                (state = proc5) : 0;
+                (state = proc6) : 0;
+                TRUE: dinout_s;
+            esac;
+        next(dinout_w) :=
+            case
+                (state = proc3) : 1;
+                (state = proc5) : 1;
+                (state = proc7) : 0;
+                (state = proc8) : 0;
+                TRUE: dinout_w;
+            esac;
+        next(dinout_n) :=
+            case
+                (state = proc1) : 0;
+                (state = proc2) : 0;
+                (state = proc6) : 5;
+                (state = proc7) : 5;
+                TRUE: dinout_n;
+            esac;
+
+MODULE inter(id, sin, sout, dinout, dest1, dest2, dest3)
+    -- 一个单向入口, 一个单向出口和一个双向可进可出端口
+    -- dest1不需要向中心节点转发
+    -- dest2和dest3需要向中心节点转发
+    FAIRNESS running
+    FAIRNESS !(state = idle)
+    VAR
+        -- proc1表示从sin转发到sout或者从sin转发到dinout
+        -- proc2表示从dinout转发到sout
+        state : {idle, proc1, proc2};
+    ASSIGN
+        init(state) := idle;
+        next(state) :=
+            case
+                (sin != 0 & ((sin = dest1 & sout = 0) | ((sin = dest2 | sin = dest3) & dinout = 0))) : proc1;
+                (dinout != 0 & sout = 0) : proc2;
+                TRUE: idle;
+            esac;
+        next(sin) :=
+            case
+                (sin != 0 & ((sin = dest1 & sout = 0) | ((sin = dest2 | sin = dest3) & dinout = 0))) : 0;
+                TRUE: sin;
+            esac;
+        next(sout) :=
+            case
+                (sin != 0 & (sin = dest1 & sout = 0) & state = proc1) : sin;
+                (dinout != 0 & sout = 0 & state = proc2) : dinout;
+                TRUE: sout;
+            esac;
+        next(dinout) :=
+            case
+                (sin != 0 & ((sin = dest2 | sin = dest3) & dinout = 0) & state = proc1) : sin;
+                TRUE: dinout;
+            esac;
+        

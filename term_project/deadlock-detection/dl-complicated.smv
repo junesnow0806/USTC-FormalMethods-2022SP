@@ -1,0 +1,182 @@
+MODULE main
+    VAR
+        c1: {0, 2, 4, 6};
+        c2: {0, 2, 4, 6};
+        c3: {0, 2, 4, 6};
+        c4: {0, 2, 4, 6};
+        c5: {0, 2, 4, 6};
+        c6: {0, 2, 4, 6};
+        c7: {0, 2, 4, 6};
+        c8: {0, 2, 4, 6};
+        c9: {0, 2, 4, 6};
+
+        pr1: process terminal(2, c9, c1, {4, 6});
+        pr2: process terminal(4, c2, c3, {2, 6});
+        pr3: process terminal(6, c3, c4, {2, 4});
+        pr4: process node3(3, c1, c6, c2);
+        pr5: process inter(7, c4, c5);
+        pr6: process node17(17, c5, c6, c7);
+        pr7: process inter(15, c7, c8);
+        pr8: process inter(16, c8, c9);
+    ASSIGN
+        init(c1) := 0;
+        init(c2) := 0;
+        init(c3) := 0;
+        init(c4) := 0;
+        init(c5) := 0;
+        init(c6) := 0;
+        init(c7) := 0;
+        init(c8) := 0;
+        init(c9) := 0;
+        next(c1) := c1;
+        next(c2) := c2;
+        next(c3) := c3;
+        next(c4) := c4;
+        next(c5) := c5;
+        next(c6) := c6;
+        next(c7) := c7;
+        next(c8) := c8;
+        next(c9) := c9;
+    CTLSPEC
+        AG(
+            !(
+                -- node 2 blocked
+                (c9 != 2 & c1 != 0) &
+                -- node 3 blocked
+                (c2 != 0 & c2 !=4) &
+                -- node 4 blocked
+                (c3 != 0 & c2 !=4) &
+                -- node 6 blocked
+                (c4 != 0 & c3 != 6) &
+                -- node 7 blocked
+                (c5 != 0 | (c5 = 0 & c4 = 0)) &
+                -- node 15 blocked
+                (c8 != 0 | (c8 = 0 & c7 = 0)) &
+                -- node 16 blocked
+                (c9 != 0 | (c9 = 0 & c8 = 0)) &
+                -- node 17 blocked
+                ((c6 != 0 & (c5 = 4)) | (c7 != 0 & c5 = 2) | (c5 = 0 & c7 = 0 & c6 = 0))
+            )
+        )
+
+MODULE terminal(id, from, to, destinations)
+    FAIRNESS running
+    FAIRNESS !(state != idle)
+    VAR
+        state: {idle, send, receive, proc};
+    ASSIGN
+        init(state) := idle;
+        next(state) := 
+            case
+                (from = 0 & to = 0) : {idle, send};
+                (from = 0 & to != 0) : {idle};
+                (from != 0 & to = 0 & from = id) : {receive, send, idle};
+                (from != 0 & to = 0 & from != id) : {proc, send, idle};
+                (from != 0 & to != 0 & from = id) : {receive, idle};
+                (from != 0 & to != 0 & from != id) : {idle};
+                TRUE: state;
+            esac;
+        next(from) :=
+            case
+                (from = id) : 0; -- receive动作, 入边编号改为0
+                (from != 0 & from != id & to = 0 & state = proc) : 0;
+                TRUE: from;
+            esac;
+        next(to) :=
+            case
+                (state = send & to = 0) : destinations; -- 如果当前状态为send, 则随机向一个node发送一条信息
+                (from != 0 & from != id & to = 0 & state = proc) : from; -- 转发
+                TRUE: to;
+            esac;
+
+
+MODULE inter(id, from, to)
+    FAIRNESS running
+    FAIRNESS !(state != idle)
+    VAR
+        -- 中间节点只有转发功能, 没有send和receive
+        state: {idle, proc};
+    ASSIGN
+        init(state) := idle;
+        next(state) := 
+            case
+                (from != 0 & to = 0 & from != id) : {proc, idle};
+                TRUE: idle;
+            esac;
+        next(from) :=
+            case
+                -- 转发, from置成0
+                (from != 0 & from != id & to = 0 & state = proc) : 0;
+                TRUE: from;
+            esac;
+        next(to) :=
+            case
+                -- 转发, 将to置成from的值
+                (from != 0 & from != id & to = 0 & state = proc) : from; -- 转发
+                TRUE: to;
+            esac;
+
+MODULE node17(id, from7, to3, to15)
+    FAIRNESS running
+    FAIRNESS !(state != idle)
+    VAR
+        -- 中间节点只有转发功能, 没有send和receive
+        state: {idle, proc};
+    ASSIGN
+        init(state) := idle;
+        next(state) := 
+            case
+                (from7 = 2 & to15 = 0) : {proc, idle};
+                (from7 = 4 & to3 = 0) : {proc, idle};
+                TRUE: idle;
+            esac;
+        next(from7) :=
+            case
+                -- 转发, from置成0
+                (from7 = 2 & to15 = 0 & state = proc) : 0;
+                (from7 = 4 & to3 = 0 & state = proc) : 0;
+                TRUE: from7;
+            esac;
+        next(to3) :=
+            case
+                -- 转发, 将to置成from的值
+                (from7 = 4 & to3 = 0 & state = proc) : from7; -- 向node3转发
+                TRUE: to3;
+            esac;
+        next(to15) :=
+            case
+                (from7 = 2 & to15 = 0 & state = proc) : from7; -- 向node15转发
+                TRUE: to15;
+            esac;
+
+MODULE node3(id, from2, from17, to4)
+    FAIRNESS running
+    FAIRNESS !(state != idle)
+    VAR
+        -- 中间节点只有转发功能, 没有send和receive
+        state: {idle, proc};
+    ASSIGN
+        init(state) := idle;
+        next(state) := 
+            case
+                (((from2 != 0 & from2 != id)| (from17 != 0 & from17 != id)) & to4 = 0) : {proc, idle};
+                TRUE: idle;
+            esac;
+        next(from2) :=
+            case
+                -- 转发, from置成0
+                (from2 != 0 & from2 != id & to4 = 0 & state = proc) : 0;
+                TRUE: from2;
+            esac;
+        next(from17) :=
+            case
+                -- 转发, from置成0
+                (from2 = 0 & from17 != 0 & from17 != id & to4 = 0 & state = proc) : 0;
+                TRUE: from17;
+            esac;
+        next(to4) :=
+            case
+                (from2 != 0 & from2 != id & to4 = 0 & state = proc) : from2;
+                (from2 = 0 & from17 != 0 & from17 != id & to4 = 0 & state = proc) : from17;
+                TRUE: to4;
+            esac;

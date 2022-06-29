@@ -1,0 +1,8 @@
+!p !s
+p r
+!s t
+!p !r
+p s
+q s
+!q !t
+r t
